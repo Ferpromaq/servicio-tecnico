@@ -12,8 +12,17 @@
  * ---------------------------------------------------------------
  */
 
-import { useEffect, useState, useCallback } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  Suspense,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import NuevaMaquinaModal from "./nueva/Nuevamaquinamodal";
 
@@ -23,11 +32,27 @@ const supabase = createClient();
 // Tipos
 // -----------------------------------------------------------------------
 
-type TabKey = "todas" | "operativa" | "en_mantencion" | "fuera_servicio";
+type TabKey =
+  | "todas"
+  | "operativa"
+  | "en_mantencion"
+  | "fuera_servicio";
 
-const TABS: { key: TabKey; label: string; estados: string[] }[] = [
-  { key: "todas", label: "Todas", estados: [] },
-  { key: "operativa", label: "Operativas", estados: ["operativa"] },
+const TABS: {
+  key: TabKey;
+  label: string;
+  estados: string[];
+}[] = [
+  {
+    key: "todas",
+    label: "Todas",
+    estados: [],
+  },
+  {
+    key: "operativa",
+    label: "Operativas",
+    estados: ["operativa"],
+  },
   {
     key: "en_mantencion",
     label: "En Mantención",
@@ -59,7 +84,10 @@ const ESTADO_LABELS: Record<string, string> = {
 function formatEstadoFallback(estado: string) {
   return estado
     .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .map(
+      (w) =>
+        w.charAt(0).toUpperCase() + w.slice(1),
+    )
     .join(" ");
 }
 
@@ -133,9 +161,14 @@ function estadoMantenimiento(
 // Badge de estado
 // -----------------------------------------------------------------------
 
-function EstadoBadge({ estado }: { estado: string }) {
+function EstadoBadge({
+  estado,
+}: {
+  estado: string;
+}) {
   const style =
-    ESTADO_STYLES[estado] ?? "bg-gray-100 text-gray-600";
+    ESTADO_STYLES[estado] ??
+    "bg-gray-100 text-gray-600";
 
   const label =
     ESTADO_LABELS[estado] ??
@@ -151,28 +184,53 @@ function EstadoBadge({ estado }: { estado: string }) {
 }
 
 // -----------------------------------------------------------------------
-// Componente principal
+// Página / Suspense
 // -----------------------------------------------------------------------
 
 export default function MaquinasView() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-xl border border-gray-200 bg-white px-4">
+          <div className="flex items-center justify-center px-4 py-16 text-sm text-gray-400">
+            Cargando máquinas...
+          </div>
+        </div>
+      }
+    >
+      <MaquinasContent />
+    </Suspense>
+  );
+}
+
+// -----------------------------------------------------------------------
+// Contenido principal
+// -----------------------------------------------------------------------
+
+function MaquinasContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<TabKey>(
-    () => (searchParams.get("tab") as TabKey) || "todas",
+    () =>
+      (searchParams.get("tab") as TabKey) ||
+      "todas",
   );
 
-  const [searchInput, setSearchInput] = useState(
-    () => searchParams.get("q") ?? "",
-  );
+  const [searchInput, setSearchInput] =
+    useState(
+      () => searchParams.get("q") ?? "",
+    );
 
   const [search, setSearch] = useState(
     () => searchParams.get("q") ?? "",
   );
 
   const [page, setPage] = useState(() => {
-    const raw = Number(searchParams.get("page"));
+    const raw = Number(
+      searchParams.get("page"),
+    );
 
     return Number.isFinite(raw) && raw > 0
       ? raw
@@ -181,11 +239,16 @@ export default function MaquinasView() {
 
   const pageSize = 10;
 
-  const [maquinas, setMaquinas] = useState<MaquinaListItem[]>([]);
+  const [maquinas, setMaquinas] =
+    useState<MaquinaListItem[]>([]);
+
   const [total, setTotal] = useState(0);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   const selectedMaquinaId =
     searchParams.get("maquina");
@@ -193,8 +256,10 @@ export default function MaquinasView() {
   const selectedMantenimientoId =
     searchParams.get("mantenimiento");
 
-  const [openNuevaMaquina, setOpenNuevaMaquina] =
-    useState(false);
+  const [
+    openNuevaMaquina,
+    setOpenNuevaMaquina,
+  ] = useState(false);
 
   // ---------------------------------------------------------------------
   // URL params
@@ -207,8 +272,13 @@ export default function MaquinasView() {
       searchParams.toString(),
     );
 
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === "") {
+    for (const [key, value] of Object.entries(
+      updates,
+    )) {
+      if (
+        value === null ||
+        value === ""
+      ) {
         params.delete(key);
       } else {
         params.set(key, value);
@@ -230,7 +300,10 @@ export default function MaquinasView() {
     setPage(1);
 
     updateParams({
-      tab: key === "todas" ? null : key,
+      tab:
+        key === "todas"
+          ? null
+          : key,
       page: null,
     });
   }
@@ -249,7 +322,10 @@ export default function MaquinasView() {
     setPage(next);
 
     updateParams({
-      page: next > 1 ? String(next) : null,
+      page:
+        next > 1
+          ? String(next)
+          : null,
     });
   }
 
@@ -262,12 +338,12 @@ export default function MaquinasView() {
     );
 
     if (maquinaId) {
-      params.set("maquina", maquinaId);
+      params.set(
+        "maquina",
+        maquinaId,
+      );
     } else {
       params.delete("maquina");
-
-      // Si cerramos la máquina,
-      // también eliminamos el mantenimiento seleccionado.
       params.delete("mantenimiento");
     }
 
@@ -276,10 +352,9 @@ export default function MaquinasView() {
         ? `${pathname}?${params.toString()}`
         : pathname;
 
-    const navigate =
-      replace
-        ? router.replace
-        : router.push;
+    const navigate = replace
+      ? router.replace
+      : router.push;
 
     navigate(url, {
       scroll: false,
@@ -300,7 +375,9 @@ export default function MaquinasView() {
         mantenimientoId,
       );
     } else {
-      params.delete("mantenimiento");
+      params.delete(
+        "mantenimiento",
+      );
     }
 
     const url =
@@ -308,10 +385,9 @@ export default function MaquinasView() {
         ? `${pathname}?${params.toString()}`
         : pathname;
 
-    const navigate =
-      replace
-        ? router.replace
-        : router.push;
+    const navigate = replace
+      ? router.replace
+      : router.push;
 
     navigate(url, {
       scroll: false,
@@ -322,83 +398,85 @@ export default function MaquinasView() {
   // Cargar máquinas
   // ---------------------------------------------------------------------
 
-  const fetchMaquinas = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchMaquinas =
+    useCallback(async () => {
+      setLoading(true);
+      setError(null);
 
-    let query = supabase
-      .from("maquinas")
-      .select(
-        `
-          id,
-          nombre,
-          marca,
-          modelo,
-          numero_serie,
-          tipo,
-          estado,
-          created_at,
-          cliente:clientes (
-            nombre_razon_social
-          )
-        `,
-        {
-          count: "exact",
-        },
-      )
-      .order("created_at", {
-        ascending: false,
-      });
+      let query = supabase
+        .from("maquinas")
+        .select(
+          `
+            id,
+            nombre,
+            marca,
+            modelo,
+            numero_serie,
+            tipo,
+            estado,
+            created_at,
+            cliente:clientes (
+              nombre_razon_social
+            )
+          `,
+          {
+            count: "exact",
+          },
+        )
+        .order("created_at", {
+          ascending: false,
+        });
 
-    const activeTab = TABS.find(
-      (t) => t.key === tab,
-    );
-
-    if (
-      activeTab &&
-      activeTab.estados.length > 0
-    ) {
-      query = query.in(
-        "estado",
-        activeTab.estados,
-      );
-    }
-
-    if (search) {
-      query = query.or(
-        `nombre.ilike.%${search}%,numero_serie.ilike.%${search}%`,
-      );
-    }
-
-    const {
-      data,
-      count,
-      error: queryError,
-    } = await query.range(
-      (page - 1) * pageSize,
-      page * pageSize - 1,
-    );
-
-    if (queryError) {
-      setError(queryError.message);
-      setMaquinas([]);
-      setTotal(0);
-    } else {
-      setMaquinas(
-        (data as unknown as MaquinaListItem[]) ??
-          [],
+      const activeTab = TABS.find(
+        (t) => t.key === tab,
       );
 
-      setTotal(count ?? 0);
-    }
+      if (
+        activeTab &&
+        activeTab.estados.length > 0
+      ) {
+        query = query.in(
+          "estado",
+          activeTab.estados,
+        );
+      }
 
-    setLoading(false);
-  }, [tab, search, page]);
+      if (search) {
+        query = query.or(
+          `nombre.ilike.%${search}%,numero_serie.ilike.%${search}%`,
+        );
+      }
+
+      const {
+        data,
+        count,
+        error: queryError,
+      } = await query.range(
+        (page - 1) * pageSize,
+        page * pageSize - 1,
+      );
+
+      if (queryError) {
+        setError(queryError.message);
+        setMaquinas([]);
+        setTotal(0);
+      } else {
+        setMaquinas(
+          (data as unknown as MaquinaListItem[]) ??
+            [],
+        );
+
+        setTotal(count ?? 0);
+      }
+
+      setLoading(false);
+    }, [tab, search, page]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchMaquinas();
-    }, 0);
+    const timer =
+      window.setTimeout(() => {
+        void fetchMaquinas();
+      }, 0);
 
     return () => {
       window.clearTimeout(timer);
@@ -425,7 +503,7 @@ export default function MaquinasView() {
   // ---------------------------------------------------------------------
 
   return (
-    <div className="rounded-xl border px-4 border-gray-200 bg-white">
+    <div className="rounded-xl border border-gray-200 bg-white px-4">
       <div className="flex items-center justify-between border-b border-gray-200 p-4">
         <h2 className="text-base font-bold text-gray-900">
           Máquinas
@@ -447,7 +525,9 @@ export default function MaquinasView() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => goToTab(t.key)}
+            onClick={() =>
+              goToTab(t.key)
+            }
             className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-xs font-medium transition-colors ${
               tab === t.key
                 ? "border-orange-600 text-orange-600"
@@ -463,12 +543,16 @@ export default function MaquinasView() {
             type="text"
             value={searchInput}
             onChange={(e) =>
-              setSearchInput(e.target.value)
+              setSearchInput(
+                e.target.value,
+              )
             }
             placeholder="Buscar máquina o N° de serie..."
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                applySearch(searchInput);
+                applySearch(
+                  searchInput,
+                );
               }
             }}
             className="w-full max-w-sm rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
@@ -522,16 +606,18 @@ export default function MaquinasView() {
               </tr>
             )}
 
-            {!loading && error && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-red-500"
-                >
-                  Error al cargar máquinas: {error}
-                </td>
-              </tr>
-            )}
+            {!loading &&
+              error && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-10 text-center text-red-500"
+                  >
+                    Error al cargar máquinas:{" "}
+                    {error}
+                  </td>
+                </tr>
+              )}
 
             {!loading &&
               !error &&
@@ -548,54 +634,63 @@ export default function MaquinasView() {
 
             {!loading &&
               !error &&
-              maquinas.map((maquina) => (
-                <tr
-                  key={maquina.id}
-                  onClick={() =>
-                    selectMaquina(maquina.id)
-                  }
-                  className="group cursor-pointer transition-colors duration-150 hover:bg-blue-50 active:bg-orange-50"
-                >
-                  <td className="px-4 py-1.5">
-                    <div className="font-semibold text-gray-900 transition-colors group-hover:text-orange-600">
-                      {maquina.nombre}
-                    </div>
-
-                    {maquina.modelo && (
-                      <div className="text-[10px] leading-tight text-gray-400">
-                        {maquina.modelo}
+              maquinas.map(
+                (maquina) => (
+                  <tr
+                    key={maquina.id}
+                    onClick={() =>
+                      selectMaquina(
+                        maquina.id,
+                      )
+                    }
+                    className="group cursor-pointer transition-colors duration-150 hover:bg-blue-50 active:bg-orange-50"
+                  >
+                    <td className="px-4 py-1.5">
+                      <div className="font-semibold text-gray-900 transition-colors group-hover:text-orange-600">
+                        {maquina.nombre}
                       </div>
-                    )}
-                  </td>
 
-                  <td className="px-4 py-1.5 text-gray-700">
-                    {maquina.marca ?? "—"}
-                  </td>
+                      {maquina.modelo && (
+                        <div className="text-[10px] leading-tight text-gray-400">
+                          {maquina.modelo}
+                        </div>
+                      )}
+                    </td>
 
-                  <td className="px-4 py-1.5 text-gray-700">
-                    {maquina.numero_serie ?? "—"}
-                  </td>
+                    <td className="px-4 py-1.5 text-gray-700">
+                      {maquina.marca ??
+                        "—"}
+                    </td>
 
-                  <td className="px-4 py-1.5 text-gray-700">
-                    {maquina.cliente
-                      ?.nombre_razon_social ?? "—"}
-                  </td>
+                    <td className="px-4 py-1.5 text-gray-700">
+                      {maquina.numero_serie ??
+                        "—"}
+                    </td>
 
-                  <td className="px-4 py-1.5 text-gray-700">
-                    {maquina.tipo}
-                  </td>
+                    <td className="px-4 py-1.5 text-gray-700">
+                      {maquina.cliente
+                        ?.nombre_razon_social ??
+                        "—"}
+                    </td>
 
-                  <td className="px-4 py-1.5">
-                    <EstadoBadge
-                      estado={maquina.estado}
-                    />
-                  </td>
+                    <td className="px-4 py-1.5 text-gray-700">
+                      {maquina.tipo}
+                    </td>
 
-                  <td className="px-2 py-1.5 text-right text-gray-300 transition-colors group-hover:text-orange-500">
-                    ›
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-4 py-1.5">
+                      <EstadoBadge
+                        estado={
+                          maquina.estado
+                        }
+                      />
+                    </td>
+
+                    <td className="px-2 py-1.5 text-right text-gray-300 transition-colors group-hover:text-orange-500">
+                      ›
+                    </td>
+                  </tr>
+                ),
+              )}
           </tbody>
         </table>
       </div>
@@ -604,7 +699,8 @@ export default function MaquinasView() {
 
       <div className="flex items-center justify-between px-4 py-1 text-xs text-gray-400">
         <span>
-          Mostrando {from} a {to} de {total} resultados
+          Mostrando {from} a {to} de{" "}
+          {total} resultados
         </span>
 
         <div className="flex items-center gap-1">
@@ -623,7 +719,9 @@ export default function MaquinasView() {
           </span>
 
           <button
-            disabled={page >= totalPages}
+            disabled={
+              page >= totalPages
+            }
             onClick={() =>
               goToPage(page + 1)
             }
@@ -634,11 +732,13 @@ export default function MaquinasView() {
         </div>
       </div>
 
-      {/* Drawer de máquina */}
+      {/* Drawer */}
 
       {selectedMaquinaId && (
         <MaquinaDrawer
-          maquinaId={selectedMaquinaId}
+          maquinaId={
+            selectedMaquinaId
+          }
           mantenimientoId={
             selectedMantenimientoId
           }
@@ -646,9 +746,14 @@ export default function MaquinasView() {
             selectMantenimiento
           }
           onClose={() =>
-            selectMaquina(null, true)
+            selectMaquina(
+              null,
+              true,
+            )
           }
-          onUpdated={fetchMaquinas}
+          onUpdated={
+            fetchMaquinas
+          }
         />
       )}
 
@@ -657,9 +762,13 @@ export default function MaquinasView() {
       <NuevaMaquinaModal
         open={openNuevaMaquina}
         onClose={() =>
-          setOpenNuevaMaquina(false)
+          setOpenNuevaMaquina(
+            false,
+          )
         }
-        onCreated={fetchMaquinas}
+        onCreated={
+          fetchMaquinas
+        }
       />
     </div>
   );
@@ -699,18 +808,24 @@ function MaquinaDrawer({
     useState<DrawerTab>("resumen");
 
   const [maquina, setMaquina] =
-    useState<MaquinaDetalle | null>(null);
+    useState<MaquinaDetalle | null>(
+      null,
+    );
 
   const [loading, setLoading] =
     useState(true);
 
   const [historial, setHistorial] =
-    useState<HistorialItem[] | null>(null);
-
-  const [mantenimientos, setMantenimientos] =
-    useState<MantenimientoItem[] | null>(
+    useState<HistorialItem[] | null>(
       null,
     );
+
+  const [
+    mantenimientos,
+    setMantenimientos,
+  ] = useState<
+    MantenimientoItem[] | null
+  >(null);
 
   // ---------------------------------------------------------------------
   // Edición
@@ -731,20 +846,32 @@ function MaquinaDrawer({
     modelo: "",
     numero_serie: "",
     estado: "operativa",
-    cliente_id: null as string | null,
+    cliente_id: null as
+      | string
+      | null,
   });
 
-  const [clienteQuery, setClienteQuery] =
-    useState("");
+  const [
+    clienteQuery,
+    setClienteQuery,
+  ] = useState("");
 
-  const [clienteResults, setClienteResults] =
-    useState<ClienteOption[]>([]);
+  const [
+    clienteResults,
+    setClienteResults,
+  ] = useState<ClienteOption[]>(
+    [],
+  );
 
-  const [clienteLabel, setClienteLabel] =
-    useState("");
+  const [
+    clienteLabel,
+    setClienteLabel,
+  ] = useState("");
 
-  const [searchingClientes, setSearchingClientes] =
-    useState(false);
+  const [
+    searchingClientes,
+    setSearchingClientes,
+  ] = useState(false);
 
   function startEditing() {
     if (!maquina) return;
@@ -758,13 +885,14 @@ function MaquinaDrawer({
       numero_serie:
         maquina.numero_serie ?? "",
       estado:
-        maquina.estado ?? "operativa",
+        maquina.estado ??
+        "operativa",
       cliente_id: null,
     });
 
     setClienteLabel(
-      maquina.cliente?.nombre_razon_social ??
-        "",
+      maquina.cliente
+        ?.nombre_razon_social ?? "",
     );
 
     setClienteQuery("");
@@ -797,29 +925,36 @@ function MaquinaDrawer({
     setSearchingClientes(true);
 
     const timer =
-      window.setTimeout(async () => {
-        const { data } =
-          await supabase
-            .from("clientes")
-            .select(
-              "id, nombre_razon_social",
-            )
-            .ilike(
-              "nombre_razon_social",
-              `%${q}%`,
-            )
-            .limit(8);
+      window.setTimeout(
+        async () => {
+          const { data } =
+            await supabase
+              .from("clientes")
+              .select(
+                "id, nombre_razon_social",
+              )
+              .ilike(
+                "nombre_razon_social",
+                `%${q}%`,
+              )
+              .limit(8);
 
-        setClienteResults(
-          (data as unknown as ClienteOption[]) ??
-            [],
-        );
+          setClienteResults(
+            (data as unknown as ClienteOption[]) ??
+              [],
+          );
 
-        setSearchingClientes(false);
-      }, 300);
+          setSearchingClientes(
+            false,
+          );
+        },
+        300,
+      );
 
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(
+        timer,
+      );
     };
   }, [
     clienteQuery,
@@ -873,18 +1008,21 @@ function MaquinaDrawer({
       string,
       unknown
     > = {
-      nombre: form.nombre.trim(),
+      nombre:
+        form.nombre.trim(),
       marca:
         form.marca.trim() || null,
       modelo:
         form.modelo.trim() || null,
       numero_serie:
-        form.numero_serie.trim() || null,
+        form.numero_serie.trim() ||
+        null,
       estado: form.estado,
     };
 
     if (
-      clienteUpdate !== undefined
+      clienteUpdate !==
+      undefined
     ) {
       payload.cliente_id =
         clienteUpdate;
@@ -920,7 +1058,9 @@ function MaquinaDrawer({
       .single();
 
     if (error) {
-      setSaveError(error.message);
+      setSaveError(
+        error.message,
+      );
       setSaving(false);
       return;
     }
@@ -1006,12 +1146,15 @@ function MaquinaDrawer({
 
     async function fetchRelacionados() {
       if (
-        activeTab === "historial" &&
+        activeTab ===
+          "historial" &&
         historial === null
       ) {
         const { data } =
           await supabase
-            .from("historial_estados")
+            .from(
+              "historial_estados",
+            )
             .select(
               `
                 id,
@@ -1047,12 +1190,15 @@ function MaquinaDrawer({
       }
 
       if (
-        activeTab === "mantenimientos" &&
+        activeTab ===
+          "mantenimientos" &&
         mantenimientos === null
       ) {
         const { data } =
           await supabase
-            .from("mantenimientos")
+            .from(
+              "mantenimientos",
+            )
             .select(
               `
                 id,
@@ -1098,7 +1244,9 @@ function MaquinaDrawer({
   // mostramos automáticamente la sección correspondiente.
   useEffect(() => {
     if (mantenimientoId) {
-      setActiveTab("mantenimientos");
+      setActiveTab(
+        "mantenimientos",
+      );
     }
   }, [mantenimientoId]);
 
@@ -1124,7 +1272,8 @@ function MaquinaDrawer({
     mantenimientoId
       ? mantenimientos?.find(
           (m) =>
-            m.id === mantenimientoId,
+            m.id ===
+            mantenimientoId,
         ) ?? null
       : null;
 
@@ -1133,9 +1282,6 @@ function MaquinaDrawer({
   ) {
     setActiveTab(key);
 
-    // Si estamos viendo un detalle
-    // y cambiamos de pestaña,
-    // cerramos el mantenimiento seleccionado.
     if (mantenimientoId) {
       onSelectMantenimiento(
         null,
@@ -1170,7 +1316,8 @@ function MaquinaDrawer({
             </div>
 
             <div className="truncate text-lg font-semibold text-gray-900">
-              {maquina?.nombre ?? "..."}
+              {maquina?.nombre ??
+                "..."}
             </div>
           </div>
 
@@ -1189,7 +1336,9 @@ function MaquinaDrawer({
               !isEditing &&
               !mantenimientoId && (
                 <button
-                  onClick={startEditing}
+                  onClick={
+                    startEditing
+                  }
                   className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                 >
                   Editar
@@ -1212,28 +1361,32 @@ function MaquinaDrawer({
           <div
             className="flex items-center gap-1 overflow-x-auto border-b border-gray-200 px-4 [&::-webkit-scrollbar]:hidden"
             style={{
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
+              scrollbarWidth:
+                "none",
+              msOverflowStyle:
+                "none",
             }}
           >
-            {drawerTabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() =>
-                  handleTabChange(
-                    t.key,
-                  )
-                }
-                className={`flex-shrink-0 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors ${
-                  activeTab ===
-                  t.key
-                    ? "border-orange-600 text-orange-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {drawerTabs.map(
+              (t) => (
+                <button
+                  key={t.key}
+                  onClick={() =>
+                    handleTabChange(
+                      t.key,
+                    )
+                  }
+                  className={`flex-shrink-0 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors ${
+                    activeTab ===
+                    t.key
+                      ? "border-orange-600 text-orange-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ),
+            )}
           </div>
         )}
 
@@ -1246,14 +1399,14 @@ function MaquinaDrawer({
             </p>
           )}
 
-          {/* ------------------------------------------------------------- */}
           {/* DETALLE DEL MANTENIMIENTO */}
-          {/* ------------------------------------------------------------- */}
 
           {!loading &&
             mantenimientoId && (
               <div
-                key={mantenimientoId}
+                key={
+                  mantenimientoId
+                }
                 className="drawer-fade-in space-y-6"
               >
                 <button
@@ -1263,22 +1416,27 @@ function MaquinaDrawer({
                       true,
                     )
                   }
-                  className="inline-flex items-center gap-1 cursor-pointer text-sm font-medium text-gray-500 transition-colors hover:text-orange-600"
+                  className="inline-flex cursor-pointer items-center gap-1 text-sm font-medium text-gray-500 transition-colors hover:text-orange-600"
                 >
-                  ← Volver a Mantenimientos
+                  ← Volver a
+                  Mantenimientos
                 </button>
 
                 {!selectedMantenimiento &&
-                  mantenimientos === null && (
+                  mantenimientos ===
+                    null && (
                     <p className="text-sm text-gray-400">
                       Cargando mantenimiento...
                     </p>
                   )}
 
                 {!selectedMantenimiento &&
-                  mantenimientos !== null && (
+                  mantenimientos !==
+                    null && (
                     <p className="text-sm text-red-500">
-                      No se encontró este mantenimiento.
+                      No se encontró
+                      este
+                      mantenimiento.
                     </p>
                   )}
 
@@ -1304,8 +1462,6 @@ function MaquinaDrawer({
                       />
                     </div>
 
-                    {/* Información */}
-
                     <section>
                       <h4 className="mb-4 text-sm font-semibold text-gray-900">
                         Información
@@ -1314,7 +1470,8 @@ function MaquinaDrawer({
                       <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                         <div>
                           <div className="text-xs text-gray-400">
-                            Fecha de revisión
+                            Fecha de
+                            revisión
                           </div>
 
                           <div className="mt-1 font-medium text-gray-900">
@@ -1330,7 +1487,8 @@ function MaquinaDrawer({
 
                         <div>
                           <div className="text-xs text-gray-400">
-                            Próxima revisión
+                            Próxima
+                            revisión
                           </div>
 
                           <div className="mt-1 font-medium text-gray-900">
@@ -1370,8 +1528,6 @@ function MaquinaDrawer({
                       </div>
                     </section>
 
-                    {/* Descripción */}
-
                     <section>
                       <h4 className="mb-2 text-sm font-semibold text-gray-900">
                         Descripción
@@ -1383,8 +1539,6 @@ function MaquinaDrawer({
                         }
                       </div>
                     </section>
-
-                    {/* Resultado */}
 
                     <section>
                       <h4 className="mb-2 text-sm font-semibold text-gray-900">
@@ -1399,8 +1553,11 @@ function MaquinaDrawer({
                         </div>
                       ) : (
                         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-400">
-                          Este mantenimiento aún no tiene
-                          un resultado registrado.
+                          Este
+                          mantenimiento
+                          aún no tiene
+                          un resultado
+                          registrado.
                         </div>
                       )}
                     </section>
@@ -1409,19 +1566,19 @@ function MaquinaDrawer({
               </div>
             )}
 
-          {/* ------------------------------------------------------------- */}
           {/* RESUMEN */}
-          {/* ------------------------------------------------------------- */}
 
           {!loading &&
             maquina &&
             !mantenimientoId &&
-            activeTab === "resumen" &&
+            activeTab ===
+              "resumen" &&
             !isEditing && (
               <div className="drawer-fade-in space-y-6">
                 <section>
                   <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                    Información General
+                    Información
+                    General
                   </h3>
 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm lg:grid-cols-3">
@@ -1431,12 +1588,14 @@ function MaquinaDrawer({
                       </div>
 
                       <div className="font-medium text-gray-900">
-                        {maquina.cliente
-                          ?.nombre_razon_social ?? (
-                          <span className="text-gray-400">
-                            Sin asignar
-                          </span>
-                        )}
+                        {maquina
+                          .cliente
+                          ?.nombre_razon_social ??
+                          (
+                            <span className="text-gray-400">
+                              Sin asignar
+                            </span>
+                          )}
                       </div>
                     </div>
 
@@ -1446,8 +1605,10 @@ function MaquinaDrawer({
                       </div>
 
                       <div className="font-medium text-gray-900">
-                        {maquina.cliente
-                          ?.telefono ?? "—"}
+                        {maquina
+                          .cliente
+                          ?.telefono ??
+                          "—"}
                       </div>
                     </div>
 
@@ -1457,7 +1618,8 @@ function MaquinaDrawer({
                       </div>
 
                       <div className="font-medium text-gray-900">
-                        {maquina.marca ?? "—"}
+                        {maquina.marca ??
+                          "—"}
                       </div>
                     </div>
 
@@ -1467,7 +1629,8 @@ function MaquinaDrawer({
                       </div>
 
                       <div className="font-medium text-gray-900">
-                        {maquina.modelo ?? "—"}
+                        {maquina.modelo ??
+                          "—"}
                       </div>
                     </div>
 
@@ -1510,19 +1673,19 @@ function MaquinaDrawer({
               </div>
             )}
 
-          {/* ------------------------------------------------------------- */}
           {/* EDICIÓN */}
-          {/* ------------------------------------------------------------- */}
 
           {!loading &&
             maquina &&
             !mantenimientoId &&
-            activeTab === "resumen" &&
+            activeTab ===
+              "resumen" &&
             isEditing && (
               <div className="drawer-fade-in space-y-5">
                 <section>
                   <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                    Editar información
+                    Editar
+                    información
                   </h3>
 
                   <div className="space-y-4">
@@ -1532,13 +1695,21 @@ function MaquinaDrawer({
                       </label>
 
                       <input
-                        value={form.nombre}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            nombre:
-                              e.target.value,
-                          }))
+                        value={
+                          form.nombre
+                        }
+                        onChange={(
+                          e,
+                        ) =>
+                          setForm(
+                            (f) => ({
+                              ...f,
+                              nombre:
+                                e
+                                  .target
+                                  .value,
+                            }),
+                          )
                         }
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       />
@@ -1551,13 +1722,21 @@ function MaquinaDrawer({
                         </label>
 
                         <input
-                          value={form.marca}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              marca:
-                                e.target.value,
-                            }))
+                          value={
+                            form.marca
+                          }
+                          onChange={(
+                            e,
+                          ) =>
+                            setForm(
+                              (f) => ({
+                                ...f,
+                                marca:
+                                  e
+                                    .target
+                                    .value,
+                              }),
+                            )
                           }
                           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                         />
@@ -1569,13 +1748,21 @@ function MaquinaDrawer({
                         </label>
 
                         <input
-                          value={form.modelo}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              modelo:
-                                e.target.value,
-                            }))
+                          value={
+                            form.modelo
+                          }
+                          onChange={(
+                            e,
+                          ) =>
+                            setForm(
+                              (f) => ({
+                                ...f,
+                                modelo:
+                                  e
+                                    .target
+                                    .value,
+                              }),
+                            )
                           }
                           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                         />
@@ -1591,12 +1778,18 @@ function MaquinaDrawer({
                         value={
                           form.numero_serie
                         }
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            numero_serie:
-                              e.target.value,
-                          }))
+                        onChange={(
+                          e,
+                        ) =>
+                          setForm(
+                            (f) => ({
+                              ...f,
+                              numero_serie:
+                                e
+                                  .target
+                                  .value,
+                            }),
+                          )
                         }
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       />
@@ -1608,13 +1801,21 @@ function MaquinaDrawer({
                       </label>
 
                       <select
-                        value={form.estado}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            estado:
-                              e.target.value,
-                          }))
+                        value={
+                          form.estado
+                        }
+                        onChange={(
+                          e,
+                        ) =>
+                          setForm(
+                            (f) => ({
+                              ...f,
+                              estado:
+                                e
+                                  .target
+                                  .value,
+                            }),
+                          )
                         }
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       >
@@ -1627,7 +1828,8 @@ function MaquinaDrawer({
                         </option>
 
                         <option value="fuera_servicio">
-                          Fuera de Servicio
+                          Fuera de
+                          Servicio
                         </option>
                       </select>
                     </div>
@@ -1640,7 +1842,9 @@ function MaquinaDrawer({
                       {clienteLabel ? (
                         <div className="flex items-center justify-between rounded-lg border border-gray-300 px-3 py-2 text-sm">
                           <span className="text-gray-900">
-                            {clienteLabel}
+                            {
+                              clienteLabel
+                            }
                           </span>
 
                           <button
@@ -1657,9 +1861,13 @@ function MaquinaDrawer({
                           value={
                             clienteQuery
                           }
-                          onChange={(e) =>
+                          onChange={(
+                            e,
+                          ) =>
                             setClienteQuery(
-                              e.target.value,
+                              e
+                                .target
+                                .value,
                             )
                           }
                           placeholder="Buscar cliente por nombre..."
@@ -1670,7 +1878,8 @@ function MaquinaDrawer({
                       {!clienteLabel &&
                         clienteQuery
                           .trim()
-                          .length >= 2 && (
+                          .length >=
+                          2 && (
                           <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
                             {searchingClientes && (
                               <div className="px-3 py-2 text-xs text-gray-400">
@@ -1682,14 +1891,17 @@ function MaquinaDrawer({
                               clienteResults.length ===
                                 0 && (
                                 <div className="px-3 py-2 text-xs text-gray-400">
-                                  Sin resultados.
+                                  Sin
+                                  resultados.
                                 </div>
                               )}
 
                             {clienteResults.map(
                               (c) => (
                                 <button
-                                  key={c.id}
+                                  key={
+                                    c.id
+                                  }
                                   onClick={() =>
                                     pickCliente(
                                       c,
@@ -1734,7 +1946,9 @@ function MaquinaDrawer({
                       onClick={
                         cancelEditing
                       }
-                      disabled={saving}
+                      disabled={
+                        saving
+                      }
                       className="rounded-lg border border-gray-200 px-3.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
                     >
                       Cancelar
@@ -1744,30 +1958,38 @@ function MaquinaDrawer({
               </div>
             )}
 
-          {/* ------------------------------------------------------------- */}
           {/* LISTA DE MANTENIMIENTOS */}
-          {/* ------------------------------------------------------------- */}
 
           {!mantenimientoId &&
-            activeTab === "mantenimientos" && (
+            activeTab ===
+              "mantenimientos" && (
               <div className="drawer-fade-in space-y-2">
-                {mantenimientos === null && (
+                {mantenimientos ===
+                  null && (
                   <p className="text-sm text-gray-400">
-                    Cargando mantenimientos...
+                    Cargando
+                    mantenimientos...
                   </p>
                 )}
 
-                {mantenimientos !== null &&
+                {mantenimientos !==
+                  null &&
                   mantenimientos.length ===
                     0 && (
                     <p className="text-sm text-gray-400">
-                      No hay mantenimientos registrados
-                      para esta máquina.
+                      No hay
+                      mantenimientos
+                      registrados
+                      para esta
+                      máquina.
                     </p>
                   )}
 
                 {mantenimientos?.map(
-                  (m, index) => (
+                  (
+                    m,
+                    index,
+                  ) => (
                     <button
                       key={m.id}
                       type="button"
@@ -1777,9 +1999,14 @@ function MaquinaDrawer({
                         )
                       }
                       style={{
-                        animationDelay: `${Math.min(index, 8) * 30}ms`,
+                        animationDelay: `${
+                          Math.min(
+                            index,
+                            8,
+                          ) * 30
+                        }ms`,
                       }}
-                      className="mant-row-in group flex w-full items-center cursor-pointer justify-between rounded-lg border border-gray-200 p-3 text-left text-sm transition-colors hover:border-orange-200 hover:bg-orange-50"
+                      className="mant-row-in group flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-200 p-3 text-left text-sm transition-colors hover:border-orange-200 hover:bg-orange-50"
                     >
                       <div className="min-w-0">
                         <div className="truncate font-medium text-gray-900 transition-colors group-hover:text-orange-600">
@@ -1789,7 +2016,8 @@ function MaquinaDrawer({
                         </div>
 
                         <div className="text-xs text-gray-400">
-                          Próxima revisión:{" "}
+                          Próxima
+                          revisión:{" "}
                           {new Date(
                             m.proxima_revision,
                           ).toLocaleDateString(
@@ -1822,68 +2050,71 @@ function MaquinaDrawer({
               </div>
             )}
 
-          {/* ------------------------------------------------------------- */}
           {/* HISTORIAL */}
-          {/* ------------------------------------------------------------- */}
 
           {!mantenimientoId &&
-            activeTab === "historial" && (
+            activeTab ===
+              "historial" && (
               <div className="drawer-fade-in space-y-4">
                 {historial === null && (
                   <p className="text-sm text-gray-400">
-                    Cargando historial...
+                    Cargando
+                    historial...
                   </p>
                 )}
 
                 {historial !== null &&
-                  historial.length === 0 && (
+                  historial.length ===
+                    0 && (
                     <p className="text-sm text-gray-400">
-                      Sin movimientos registrados.
+                      Sin movimientos
+                      registrados.
                     </p>
                   )}
 
-                {historial?.map((h) => (
-                  <div
-                    key={h.id}
-                    className="flex gap-3 text-sm"
-                  >
-                    <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-orange-600" />
+                {historial?.map(
+                  (h) => (
+                    <div
+                      key={h.id}
+                      className="flex gap-3 text-sm"
+                    >
+                      <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-orange-600" />
 
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {h.estado_anterior
-                          ? `${h.estado_anterior} → `
-                          : ""}
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {h.estado_anterior
+                            ? `${h.estado_anterior} → `
+                            : ""}
 
-                        {h.estado_nuevo}
-                      </div>
+                          {
+                            h.estado_nuevo
+                          }
+                        </div>
 
-                      <div className="text-xs text-gray-400">
-                        {new Date(
-                          h.created_at,
-                        ).toLocaleString(
-                          "es-CL",
-                        )}
+                        <div className="text-xs text-gray-400">
+                          {new Date(
+                            h.created_at,
+                          ).toLocaleString(
+                            "es-CL",
+                          )}
 
-                        {h.usuario?.nombre
-                          ? ` · ${h.usuario.nombre}`
-                          : ""}
+                          {h
+                            .usuario
+                            ?.nombre
+                            ? ` · ${h.usuario.nombre}`
+                            : ""}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ),
+                )}
               </div>
             )}
         </div>
       </div>
 
-      {/* Animaciones de entrada suaves para el contenido del drawer.
-          - drawer-fade-in: fade + slide sutil, usado en resumen, edición,
-            historial y en el detalle del mantenimiento (con key={id} para
-            que se re-dispare al cambiar de un mantenimiento a otro).
-          - mant-row-in: cada fila de la lista de mantenimientos entra con
-            un pequeño stagger (delay incremental) para que se sienta más
-            vivo en vez de aparecer todo de golpe. */}
+      {/* Animaciones */}
+
       <style jsx>{`
         @keyframes drawerFadeIn {
           from {
@@ -1897,7 +2128,8 @@ function MaquinaDrawer({
         }
 
         .drawer-fade-in {
-          animation: drawerFadeIn 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+          animation: drawerFadeIn 1000ms
+            cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes mantRowIn {
@@ -1912,7 +2144,8 @@ function MaquinaDrawer({
         }
 
         .mant-row-in {
-          animation: mantRowIn 220ms ease-out backwards;
+          animation: mantRowIn 220ms
+            ease-out backwards;
         }
       `}</style>
     </>
