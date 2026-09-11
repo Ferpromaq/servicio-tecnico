@@ -24,7 +24,7 @@
  * ---------------------------------------------------------------
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import NuevaOrdenModal from "./nueva/NuevaOrdenModal";
@@ -256,8 +256,23 @@ function EstadoBadge({ estado }: { estado: string }) {
 // -----------------------------------------------------------------------
 // Componente principal
 // -----------------------------------------------------------------------
-
 export default function OrdenesServicioView() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-xl border border-gray-200 bg-white px-4">
+          <div className="flex items-center justify-center px-4 py-16 text-sm text-gray-400">
+            Cargando órdenes...
+          </div>
+        </div>
+      }
+    >
+      <OrdenesServicioContent />
+    </Suspense>
+  );
+}
+
+function OrdenesServicioContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
