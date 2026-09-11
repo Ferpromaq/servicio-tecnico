@@ -21,7 +21,7 @@
  * ---------------------------------------------------------------
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -205,6 +205,22 @@ function formatFechaHora(fecha: string | null) {
 // -----------------------------------------------------------------------
 
 export default function RepuestosView() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-xl border border-gray-200 bg-white px-4">
+          <div className="flex items-center justify-center px-4 py-16 text-sm text-gray-400">
+            Cargando repuestos...
+          </div>
+        </div>
+      }
+    >
+      <RepuestosContent />
+    </Suspense>
+  );
+}
+
+function RepuestosContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
