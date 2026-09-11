@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #ff3300;
+}
+
+.sidebar {
+  background-color: #111827;
+}
+
+.sidebar-active {
+  background-color: #ff3300;
+  color: white;
+}
