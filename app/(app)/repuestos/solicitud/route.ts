@@ -165,27 +165,24 @@ export async function POST(request: NextRequest) {
       .from("ordenes_servicio")
       .select(
         `
-        id,
-        numero_orden,
-        estado,
-        created_at,
-        cliente:clientes (
-          nombre_razon_social,
-          rut,
-          telefono,
-          correo
-        ),
-        maquina:maquinas (
-          nombre,
-          marca,
-          modelo,
-          numero_serie
-        ),
-        tecnico:usuarios (
-          nombre,
-          telefono
-        )
-        `,
+    id,
+    numero_orden,
+    estado,
+    created_at,
+    tecnico_id,
+    cliente:clientes (
+      nombre_razon_social,
+      rut,
+      telefono,
+      correo
+    ),
+    maquina:maquinas (
+      nombre,
+      marca,
+      modelo,
+      numero_serie
+    )
+    `,
       )
       .eq("id", ordenId)
       .single();
@@ -213,9 +210,24 @@ export async function POST(request: NextRequest) {
       ? (ordenRaw.maquina[0] ?? null)
       : ordenRaw.maquina;
 
-    const tecnico = Array.isArray(ordenRaw.tecnico)
-      ? (ordenRaw.tecnico[0] ?? null)
-      : ordenRaw.tecnico;
+    let tecnico: {
+      nombre: string | null;
+      telefono: string | null;
+    } | null = null;
+
+    if (ordenRaw.tecnico_id) {
+      const { data: tecnicoData, error: tecnicoError } = await supabase
+        .from("usuarios")
+        .select("nombre, telefono")
+        .eq("id", ordenRaw.tecnico_id)
+        .maybeSingle();
+
+      if (tecnicoError) {
+        console.error("Error obteniendo técnico:", tecnicoError);
+      }
+
+      tecnico = tecnicoData;
+    }
 
     // -------------------------------------------------------------
     // CALCULAR SUBTOTALES Y TOTAL

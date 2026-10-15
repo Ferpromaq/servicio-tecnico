@@ -55,13 +55,16 @@ export default function NuevaOrdenModal({
   } = useCrearOrden(onCreated);
 
   const [descripcion, setDescripcion] = useState("");
+  const [esPuestaEnMarcha, setEsPuestaEnMarcha] = useState(false);
 
   const puedeCrear =
     !!clienteState.cliente &&
     !!maquinaState.maquina &&
     !!tecnicoState.tecnico &&
     descripcion.trim().length > 0 &&
-    garantiaState.completa;
+    (esPuestaEnMarcha
+      ? garantiaState.numeroBoletaCompra.trim().length > 0
+      : garantiaState.completa);
 
   function resetAll() {
     clienteState.reset();
@@ -70,6 +73,7 @@ export default function NuevaOrdenModal({
     garantiaState.reset();
     resetEnvio();
     setDescripcion("");
+    setEsPuestaEnMarcha(false);
   }
 
   function handleClose() {
@@ -127,7 +131,41 @@ export default function NuevaOrdenModal({
                 disabled={!clienteState.cliente}
               />
 
-              <GarantiaField state={garantiaState} />
+              {/* Puesta en marcha */}
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                <input
+                  type="checkbox"
+                  checked={esPuestaEnMarcha}
+                  onChange={(e) => {
+                    const marcada = e.target.checked;
+
+                    setEsPuestaEnMarcha(marcada);
+
+                    if (marcada) {
+                      garantiaState.setTieneGarantia(true);
+                    } else {
+                      garantiaState.setTieneGarantia(null);
+                    }
+                  }}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-orange-500"
+                />
+
+                <span>
+                  <span className="block text-sm font-medium text-slate-200">
+                    Puesta en marcha
+                  </span>
+                  <span className="mt-1 block text-xs text-slate-400">
+                    Primer encendido de una máquina recién comprada. Se activará
+                    automáticamente la garantía y será obligatorio ingresar la
+                    boleta o factura de compra.
+                  </span>
+                </span>
+              </label>
+
+              <GarantiaField
+                state={garantiaState}
+                puestaEnMarcha={esPuestaEnMarcha}
+              />
 
               <TecnicoField state={tecnicoState} />
 

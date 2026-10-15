@@ -5,7 +5,10 @@ import type { MaquinaSeleccionada } from "../nueva/types";
  * Estado de la sección de garantía. Si la máquina seleccionada ya
  * existía y ya tenía datos de garantía guardados, los precarga.
  */
-export function useGarantia(maquina: MaquinaSeleccionada | null, creandoMaquina: boolean) {
+export function useGarantia(
+  maquina: MaquinaSeleccionada | null,
+  creandoMaquina: boolean,
+) {
   const [tieneGarantia, setTieneGarantia] = useState<boolean | null>(null);
   const [numeroBoletaCompra, setNumeroBoletaCompra] = useState("");
   const [montoRevision, setMontoRevision] = useState("");
@@ -14,7 +17,12 @@ export function useGarantia(maquina: MaquinaSeleccionada | null, creandoMaquina:
   useEffect(() => {
     if (maquina && !creandoMaquina && "tiene_garantia" in maquina) {
       setTieneGarantia(maquina.tiene_garantia ?? null);
-      setNumeroBoletaCompra(maquina.numero_boleta_compra || "");
+
+      setNumeroBoletaCompra(
+        maquina.numero_boleta_compra != null
+          ? String(maquina.numero_boleta_compra)
+          : "",
+      );
     }
   }, [maquina, creandoMaquina]);
 
@@ -22,8 +30,9 @@ export function useGarantia(maquina: MaquinaSeleccionada | null, creandoMaquina:
     tieneGarantia === true
       ? numeroBoletaCompra.trim().length > 0
       : tieneGarantia === false
-      ? montoRevision !== "" && numeroBoletaRevision.trim().length > 0
-      : false;
+        ? montoRevision !== "" &&
+          numeroBoletaRevision.trim().length > 0
+        : false;
 
   function reset() {
     setTieneGarantia(null);

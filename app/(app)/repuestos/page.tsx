@@ -18,6 +18,8 @@
  *  - Destaca visualmente el repuesto indicado en la URL.
  *  - Cada fila de repuesto es clickeable.
  *  - La selección se mantiene en la URL.
+ *  - Permite agregar repuestos del stock de la empresa y
+ *    asignarlos (ahora o después) a una orden de servicio.
  * ---------------------------------------------------------------
  */
 
@@ -28,6 +30,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   ShoppingCart,
+  PackageCheck,
+  Wrench,
   X,
   ChevronLeft,
   ChevronRight,
@@ -35,11 +39,15 @@ import {
   AlertTriangle,
   Inbox,
   Eye,
+  Plus,
+  Link2,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase-browser";
 import AutorizacionModal from "./components/AutorizacionModal";
 import ConfirmarCompraModal from "./components/ConfirmarCompraModal";
+import AgregarRepuestoModal from "./components/AgregarRepuestoModal";
+import RepuestoDrawer from "./components/RepuestoDrawer";
 
 const supabase = createClient();
 
@@ -60,23 +68,49 @@ type TabKey = "todos" | EstadoRepuesto;
 interface RepuestoRow {
   id: string;
   origen_tipo: string;
-  origen_id: string;
+  origen_id: string | null;
+  desde_stock: boolean;
   nombre_repuesto: string;
   valor: number;
   cantidad: number;
   estado: EstadoRepuesto;
   created_at: string;
 
+  // Auditoría
+  auditoria_requerida: boolean;
+
+  // Máquina y solicitud
+  maquina_id: string | null;
+  solicitado_por: string | null;
+
+  // Autorización
   autorizado_por: string | null;
   autorizado_en: string | null;
   motivo_autorizacion: string | null;
 
+  // Rechazo
   rechazado_por: string | null;
   rechazado_en: string | null;
   motivo_rechazo: string | null;
 
+  // Compra
   comprado_por: string | null;
   comprado_en: string | null;
+
+  // Garantía / contacto cliente
+  garantia_cubre_repuesto: boolean;
+  cliente_contactado: boolean;
+  cliente_contactado_por: string | null;
+
+  // Recepción
+  recibido: boolean;
+  recibido_en: string | null;
+  recibido_por: string | null;
+
+  // Instalación
+  instalado: boolean;
+  instalado_en: string | null;
+  instalado_por: string | null;
 }
 
 interface OrdenRef {
@@ -91,6 +125,84 @@ interface UsuarioRef {
   id: string;
   nombre: string;
 }
+
+interface MaquinaRef {
+  id: string;
+  tipo: string;
+  nombre: string;
+  marca: string | null;
+  modelo: string | null;
+  numero_serie: string | null;
+  estado: string;
+}
+
+function getEstadoRepuesto(repuesto: RepuestoRow) {
+  if (repuesto.estado === "rechazado") {
+    return "Rechazado";
+  }
+
+  if (repuesto.instalado) {
+    return "Instalado";
+  }
+
+  if (repuesto.recibido) {
+    return "Recibido";
+  }
+
+  if (repuesto.estado === "comprado") {
+    return "Comprado";
+  }
+
+  if (repuesto.estado === "autorizado") {
+    return "Autorizado";
+  }
+
+  return "Pendiente";
+}
+
+// -----------------------------------------------------------------------
+// COLUMNAS A CONSULTAR
+// -----------------------------------------------------------------------
+
+const REPUESTO_COLUMNS = `
+    id,
+    origen_tipo,
+    origen_id,
+    desde_stock,
+    nombre_repuesto,
+    valor,
+    cantidad,
+    estado,
+    created_at,
+
+    auditoria_requerida,
+
+    maquina_id,
+    solicitado_por,
+
+    autorizado_por,
+    autorizado_en,
+    motivo_autorizacion,
+
+    rechazado_por,
+    rechazado_en,
+    motivo_rechazo,
+
+    comprado_por,
+    comprado_en,
+
+    garantia_cubre_repuesto,
+    cliente_contactado,
+    cliente_contactado_por,
+
+    recibido,
+    recibido_en,
+    recibido_por,
+
+    instalado,
+    instalado_en,
+    instalado_por
+  `;
 
 // -----------------------------------------------------------------------
 // TABS
@@ -259,6 +371,9 @@ function RepuestosContent() {
   const [usuariosById, setUsuariosById] = useState<Record<string, UsuarioRef>>(
     {},
   );
+  const [maquinasById, setMaquinasById] = useState<Record<string, MaquinaRef>>(
+    {},
+  );
 
   // ---------------------------------------------------------------------
   // CARGA
@@ -300,6 +415,12 @@ function RepuestosContent() {
     motivo: string;
     repuestoNombre: string;
   } | null>(null);
+
+  const [stockModal, setStockModal] = useState<
+    { mode: "crear" } | { mode: "asignar"; repuesto: RepuestoRow } | null
+  >(null);
+
+  const [repuestoSeleccionado, setRepuestoSeleccionado] = useState<any>(null);
 
   // ---------------------------------------------------------------------
   // REFERENCIAS
@@ -490,29 +611,9 @@ function RepuestosContent() {
 
     let query = supabase
       .from("repuestos_solicitados")
-      .select(
-        `
-            id,
-            origen_tipo,
-            origen_id,
-            nombre_repuesto,
-            valor,
-            cantidad,
-            estado,
-            created_at,
-            autorizado_por,
-            autorizado_en,
-            motivo_autorizacion,
-            rechazado_por,
-            rechazado_en,
-            motivo_rechazo,
-            comprado_por,
-            comprado_en
-          `,
-        {
-          count: "exact",
-        },
-      )
+      .select(REPUESTO_COLUMNS, {
+        count: "exact",
+      })
       .order("created_at", {
         ascending: false,
       })
@@ -562,8 +663,8 @@ function RepuestosContent() {
     const ordenIds = Array.from(
       new Set(
         repuestos
-          .filter((r) => r.origen_tipo === "orden_servicio")
-          .map((r) => r.origen_id),
+          .filter((r) => r.origen_tipo === "orden_servicio" && r.origen_id)
+          .map((r) => r.origen_id as string),
       ),
     );
 
@@ -603,10 +704,61 @@ function RepuestosContent() {
     const usuarioIds = Array.from(
       new Set(
         repuestos
-          .flatMap((r) => [r.autorizado_por, r.rechazado_por, r.comprado_por])
+          .flatMap((r) => [
+            r.solicitado_por,
+            r.autorizado_por,
+            r.rechazado_por,
+            r.comprado_por,
+            r.recibido_por,
+            r.instalado_por,
+          ])
           .filter((id): id is string => Boolean(id)),
       ),
     );
+
+    // ---------------------------------------------------------------
+    // RESOLVER MÁQUINAS
+    // ---------------------------------------------------------------
+
+    const maquinaIds = Array.from(
+      new Set(
+        repuestos
+          .map((r) => r.maquina_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    if (maquinaIds.length > 0) {
+      const { data: maquinas, error: maquinasError } = await supabase
+        .from("maquinas")
+        .select(
+          `
+            id,
+            tipo,
+            nombre,
+            marca,
+            modelo,
+            numero_serie,
+            estado
+          `,
+        )
+        .in("id", maquinaIds);
+
+      if (maquinasError) {
+        console.error("Error cargando máquinas:", maquinasError);
+        setMaquinasById({});
+      } else {
+        const map: Record<string, MaquinaRef> = {};
+
+        for (const maquina of (maquinas as MaquinaRef[]) ?? []) {
+          map[maquina.id] = maquina;
+        }
+
+        setMaquinasById(map);
+      }
+    } else {
+      setMaquinasById({});
+    }
 
     if (usuarioIds.length > 0) {
       const { data: usuarios, error: usuariosError } = await supabase
@@ -702,26 +854,7 @@ function RepuestosContent() {
     async function cargarRepuestoDesdeUrl() {
       const { data, error } = await supabase
         .from("repuestos_solicitados")
-        .select(
-          `
-            id,
-            origen_tipo,
-            origen_id,
-            nombre_repuesto,
-            valor,
-            cantidad,
-            estado,
-            created_at,
-            autorizado_por,
-            autorizado_en,
-            motivo_autorizacion,
-            motivo_rechazo,
-            rechazado_por,
-            rechazado_en,
-            comprado_por,
-            comprado_en
-          `,
-        )
+        .select(REPUESTO_COLUMNS)
         .eq("id", repuestoIdDesdeModal)
         .single();
 
@@ -733,9 +866,9 @@ function RepuestosContent() {
         return;
       }
 
-      const repuesto = data as RepuestoRow;
+      const repuesto = data as unknown as RepuestoRow;
 
-      if (repuesto.estado !== "pendiente") {
+      if (repuesto.estado !== "pendiente" || repuesto.garantia_cubre_repuesto) {
         return;
       }
 
@@ -766,24 +899,37 @@ function RepuestosContent() {
   // =====================================================================
 
   function handleSeleccionarRepuesto(repuesto: RepuestoRow) {
+    setRepuestoSeleccionado(repuesto);
+
     const params = new URLSearchParams(searchParams.toString());
 
-    // Mantener el tab actual
     params.set("repuestosTab", tab);
-
-    // Guardar el repuesto seleccionado
     params.set("repuesto", repuesto.id);
 
-    // Si había algún modal en la URL,
-    // lo limpiamos.
     params.delete("aprobar");
     params.delete("rechazar");
     params.delete("accion");
 
-    // Ya estamos viendo este repuesto.
     paginaBuscadaParaRepuestoRef.current = repuesto.id;
 
     router.replace(`${pathname}?${params.toString()}`, {
+      scroll: false,
+    });
+  }
+
+  function handleCerrarDetalle() {
+    const params = new URLSearchParams(searchParams.toString());
+
+    params.delete("repuesto");
+    params.delete("aprobar");
+    params.delete("rechazar");
+    params.delete("accion");
+
+    paginaBuscadaParaRepuestoRef.current = null;
+
+    const query = params.toString();
+
+    router.replace(query ? `${pathname}?${query}` : pathname, {
       scroll: false,
     });
   }
@@ -796,6 +942,13 @@ function RepuestosContent() {
     repuesto: RepuestoRow,
     accion: "autorizado" | "rechazado",
   ) {
+    if (
+      !isAdmin ||
+      repuesto.estado !== "pendiente" ||
+      repuesto.garantia_cubre_repuesto
+    ) {
+      return;
+    }
     ignorarModalDesdeUrl.current = false;
 
     const params = new URLSearchParams(searchParams.toString());
@@ -825,16 +978,166 @@ function RepuestosContent() {
   }
 
   // =====================================================================
-  // MARCAR COMO COMPRADO
+  // MARCAR COMO RECIBIDO
   // =====================================================================
 
-  async function handleMarcarComprado(repuesto: RepuestoRow) {
+  async function handleMarcarRecibido(repuesto: RepuestoRow) {
     try {
       const { data: auth, error: authError } = await supabase.auth.getUser();
 
       if (authError || !auth.user) {
         throw new Error("No se pudo identificar al usuario actual.");
       }
+
+      if (!isAdmin) {
+        throw new Error(
+          "Solo los administradores pueden realizar esta acción.",
+        );
+      }
+
+      const { error: updateError } = await supabase
+        .from("repuestos_solicitados")
+        .update({
+          recibido: true,
+          recibido_por: auth.user.id,
+          recibido_en: new Date().toISOString(),
+        })
+        .eq("id", repuesto.id)
+        .eq("estado", "comprado")
+        .eq("recibido", false);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      await fetchRepuestos();
+    } catch (error) {
+      console.error("Error marcando repuesto como recibido:", error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo marcar el repuesto como recibido.",
+      );
+    }
+  }
+
+  // =====================================================================
+  // MARCAR COMO INSTALADO
+  // =====================================================================
+
+  async function handleMarcarInstalado(repuesto: RepuestoRow) {
+    try {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !auth.user) {
+        throw new Error("No se pudo identificar al usuario actual.");
+      }
+
+      if (!isAdmin) {
+        throw new Error(
+          "Solo los administradores pueden realizar esta acción.",
+        );
+      }
+
+      if (!repuesto.origen_id) {
+        throw new Error("Asigna el repuesto a una orden antes de instalarlo.");
+      }
+
+      // ---------------------------------------------------------------
+      // 1. Marcar este repuesto como instalado
+      // ---------------------------------------------------------------
+
+      const { error: updateError } = await supabase
+        .from("repuestos_solicitados")
+        .update({
+          instalado: true,
+          instalado_por: auth.user.id,
+          instalado_en: new Date().toISOString(),
+        })
+        .eq("id", repuesto.id)
+        .eq("recibido", true)
+        .eq("instalado", false);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // ---------------------------------------------------------------
+      // 2. Si pertenece a una orden, comprobar sus repuestos
+      // ---------------------------------------------------------------
+
+      if (repuesto.origen_tipo === "orden_servicio") {
+        const { data: repuestosOrden, error: repuestosError } = await supabase
+          .from("repuestos_solicitados")
+          .select("id, instalado")
+          .eq("origen_tipo", "orden_servicio")
+          .eq("origen_id", repuesto.origen_id)
+          .neq("estado", "rechazado");
+
+        if (repuestosError) {
+          throw repuestosError;
+        }
+
+        const todosInstalados =
+          (repuestosOrden ?? []).length > 0 &&
+          repuestosOrden.every((item) => item.instalado === true);
+
+        // -------------------------------------------------------------
+        // 3. Si todos están instalados → orden en reparación
+        // -------------------------------------------------------------
+
+        if (todosInstalados) {
+          const { error: ordenError } = await supabase
+            .from("ordenes_servicio")
+            .update({
+              estado: "en_reparacion",
+            })
+            .eq("id", repuesto.origen_id);
+
+          if (ordenError) {
+            throw ordenError;
+          }
+        }
+      }
+
+      await fetchRepuestos();
+    } catch (error) {
+      console.error("Error marcando repuesto como instalado:", error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo marcar el repuesto como instalado.",
+      );
+    }
+  }
+
+  // =====================================================================
+  // MARCAR COMO COMPRADO
+  // =====================================================================
+
+  async function handleMarcarComprado(repuesto: RepuestoRow) {
+    try {
+      // ---------------------------------------------------------------
+      // 1. OBTENER USUARIO ACTUAL
+      // ---------------------------------------------------------------
+
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !auth.user) {
+        throw new Error("No se pudo identificar al usuario actual.");
+      }
+
+      if (!isAdmin) {
+        throw new Error(
+          "Solo los administradores pueden realizar esta acción.",
+        );
+      }
+
+      // ---------------------------------------------------------------
+      // 2. MARCAR REPUESTO COMO COMPRADO
+      // ---------------------------------------------------------------
 
       const { error: updateError } = await supabase
         .from("repuestos_solicitados")
@@ -850,7 +1153,53 @@ function RepuestosContent() {
         throw updateError;
       }
 
+      // ---------------------------------------------------------------
+      // 3. CERRAR MODAL
+      // ---------------------------------------------------------------
+
       setCompraModal(null);
+
+      // ---------------------------------------------------------------
+      // 4. NOTIFICAR AL CLIENTE
+      // ---------------------------------------------------------------
+
+      if (repuesto.origen_tipo === "orden_servicio" && repuesto.origen_id) {
+        try {
+          const response = await fetch("/api/ordenes/notificar-comprado", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ordenId: repuesto.origen_id,
+            }),
+          });
+
+          const resultado = await response.json();
+
+          if (!response.ok) {
+            console.error(
+              "El repuesto fue marcado como comprado, pero no se pudo notificar al cliente:",
+              resultado,
+            );
+
+            alert(
+              resultado?.error ??
+                "El repuesto fue comprado, pero no se pudo enviar el correo al cliente.",
+            );
+          }
+        } catch (error) {
+          console.error("Error llamando a la API de notificación:", error);
+
+          alert(
+            "El repuesto fue marcado como comprado, pero ocurrió un error al enviar el correo al cliente.",
+          );
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // 5. ACTUALIZAR LA TABLA
+      // ---------------------------------------------------------------
 
       await fetchRepuestos();
     } catch (error) {
@@ -917,11 +1266,10 @@ function RepuestosContent() {
   // =====================================================================
 
   return (
-    <div className="flex h-[min(88vh,860px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="mb-4 flex h-[min(88vh,860px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {/* ===============================================================
           HEADER
       =============================================================== */}
-
       <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
         <div className="flex items-center gap-3">
           <div>
@@ -935,13 +1283,26 @@ function RepuestosContent() {
           </div>
         </div>
 
-        <div className="hidden text-right sm:block">
-          <div className="text-lg font-bold leading-tight text-gray-900">
-            {totalRows}
-          </div>
+        <div className="flex items-center gap-4">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setStockModal({ mode: "crear" })}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-95"
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+              Agregar repuesto
+            </button>
+          )}
 
-          <div className="text-[11px] text-gray-400">
-            {tab === "todos" ? "en total" : ESTADO_LABELS[tab].toLowerCase()}
+          <div className="hidden text-right sm:block">
+            <div className="text-lg font-bold leading-tight text-gray-900">
+              {totalRows}
+            </div>
+
+            <div className="text-[11px] text-gray-400">
+              {tab === "todos" ? "en total" : ESTADO_LABELS[tab].toLowerCase()}
+            </div>
           </div>
         </div>
       </div>
@@ -949,7 +1310,6 @@ function RepuestosContent() {
       {/* ===============================================================
           TABS
       =============================================================== */}
-
       <div className="flex flex-shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-200 px-5 py-2.5">
         <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
           {TABS.map((t) => (
@@ -978,7 +1338,6 @@ function RepuestosContent() {
       {/* ===============================================================
           TABLA
       =============================================================== */}
-
       <div className="flex-1 overflow-auto">
         <table className="w-full min-w-[720px] text-left text-xs">
           {/* HEADER */}
@@ -1056,7 +1415,7 @@ function RepuestosContent() {
               !error &&
               rows.map((r) => {
                 const orden =
-                  r.origen_tipo === "orden_servicio"
+                  r.origen_tipo === "orden_servicio" && r.origen_id
                     ? ordenesById[r.origen_id]
                     : null;
 
@@ -1140,14 +1499,24 @@ function RepuestosContent() {
                     <td className="px-3 py-2">
                       {orden ? (
                         <>
-                          <div className="font-medium text-gray-900">
+                          <div className="flex items-center gap-1.5 font-medium text-gray-900">
                             {orden.numero_orden}
+
+                            {r.desde_stock && (
+                              <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">
+                                STOCK
+                              </span>
+                            )}
                           </div>
 
                           <div className="text-[10px] text-gray-400">
                             {orden.cliente?.nombre_razon_social ?? "—"}
                           </div>
                         </>
+                      ) : r.desde_stock && !r.origen_id ? (
+                        <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-600/20">
+                          Stock sin asignar
+                        </span>
                       ) : (
                         <span className="text-gray-400">{r.origen_tipo}</span>
                       )}
@@ -1290,48 +1659,50 @@ function RepuestosContent() {
 
                     {isAdmin && (
                       <td className="px-5 py-2">
-                        {/* PENDIENTE */}
+                        {/* ADMINISTRADOR: Aprobar / Rechazar */}
 
-                        {r.estado === "pendiente" && (
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* APROBAR */}
+                        {isAdmin &&
+                          r.estado === "pendiente" &&
+                          !r.garantia_cubre_repuesto && (
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* APROBAR */}
 
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
 
-                                handleAbrirAutorizacion(r, "autorizado");
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-md active:scale-95"
-                            >
-                              <Check
-                                className="h-3.5 w-3.5"
-                                strokeWidth={2.5}
-                              />
-                              Aprobar
-                            </button>
+                                  handleAbrirAutorizacion(r, "autorizado");
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-md active:scale-95"
+                              >
+                                <Check
+                                  className="h-3.5 w-3.5"
+                                  strokeWidth={2.5}
+                                />
+                                Aprobar
+                              </button>
 
-                            {/* RECHAZAR */}
+                              {/* RECHAZAR */}
 
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
 
-                                handleAbrirAutorizacion(r, "rechazado");
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-600 ring-1 ring-inset ring-rose-200 transition-all hover:bg-rose-50 hover:ring-rose-300 active:scale-95"
-                            >
-                              <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-                              Rechazar
-                            </button>
-                          </div>
-                        )}
+                                  handleAbrirAutorizacion(r, "rechazado");
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-600 ring-1 ring-inset ring-rose-200 transition-all hover:bg-rose-50 hover:ring-rose-300 active:scale-95"
+                              >
+                                <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                                Rechazar
+                              </button>
+                            </div>
+                          )}
 
-                        {/* AUTORIZADO */}
+                        {/* ADMINISTRADOR: Marcar como comprado */}
 
-                        {r.estado === "autorizado" && (
+                        {isAdmin && r.estado === "autorizado" && (
                           <div className="flex justify-end">
                             <button
                               type="button"
@@ -1351,10 +1722,90 @@ function RepuestosContent() {
                           </div>
                         )}
 
-                        {/* SIN ACCIONES */}
+                        {/* TÉCNICO / SUPERVISOR / ADMIN: Recepción, asignación e instalación */}
 
-                        {(r.estado === "rechazado" ||
-                          r.estado === "comprado") && (
+                        {r.estado === "comprado" && (
+                          <div className="flex justify-end gap-1.5">
+                            {/* RECIBIR */}
+
+                            {!r.recibido && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+
+                                  handleMarcarRecibido(r);
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-amber-500/20 transition-all hover:bg-amber-600 hover:shadow-md active:scale-95"
+                              >
+                                <PackageCheck
+                                  className="h-3.5 w-3.5"
+                                  strokeWidth={2.5}
+                                />
+                                Marcar recibido
+                              </button>
+                            )}
+
+                            {/* ASIGNAR (stock sin orden) */}
+
+                            {r.desde_stock && !r.origen_id && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+
+                                  setStockModal({
+                                    mode: "asignar",
+                                    repuesto: r,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-violet-600/20 transition-all hover:bg-violet-700 hover:shadow-md active:scale-95"
+                              >
+                                <Link2
+                                  className="h-3.5 w-3.5"
+                                  strokeWidth={2.5}
+                                />
+                                Asignar a orden
+                              </button>
+                            )}
+
+                            {/* INSTALAR (exige orden asignada) */}
+
+                            {r.recibido && !r.instalado && r.origen_id && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+
+                                  handleMarcarInstalado(r);
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-violet-600/20 transition-all hover:bg-violet-700 hover:shadow-md active:scale-95"
+                              >
+                                <Wrench
+                                  className="h-3.5 w-3.5"
+                                  strokeWidth={2.5}
+                                />
+                                Marcar instalado
+                              </button>
+                            )}
+
+                            {/* COMPLETADO */}
+
+                            {r.recibido && r.instalado && (
+                              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700">
+                                <Check
+                                  className="h-3.5 w-3.5"
+                                  strokeWidth={2.5}
+                                />
+                                Instalado
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* RECHAZADO */}
+
+                        {r.estado === "rechazado" && (
                           <div className="text-right text-gray-300">—</div>
                         )}
                       </td>
@@ -1369,7 +1820,6 @@ function RepuestosContent() {
       {/* ===============================================================
           PAGINACIÓN
       =============================================================== */}
-
       {!loading && !error && totalRows > 0 && (
         <div className="flex flex-shrink-0 items-center justify-between border-t border-slate-200 px-5 py-3">
           <div className="text-xs text-gray-400">
@@ -1413,7 +1863,6 @@ function RepuestosContent() {
       {/* ===============================================================
           MINIMODAL DE MOTIVO
       =============================================================== */}
-
       {motivoModal && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-[2px]"
@@ -1491,10 +1940,22 @@ function RepuestosContent() {
         </div>
       )}
 
+      {/* DRAWER DE DETALLE DEL REPUESTO */}
+      {repuestoSeleccionado && (
+        <RepuestoDrawer
+          repuesto={repuestoSeleccionado}
+          usuariosById={usuariosById}
+          maquinasById={maquinasById}
+          onClose={() => {
+            setRepuestoSeleccionado(null);
+            handleCerrarDetalle();
+          }}
+        />
+      )}
+
       {/* ===============================================================
           MODAL AUTORIZACIÓN / RECHAZO
       =============================================================== */}
-
       {authModal && (
         <AutorizacionModal
           repuestoNombre={authModal.repuesto.nombre_repuesto}
@@ -1553,12 +2014,31 @@ function RepuestosContent() {
       {/* ===============================================================
           MODAL COMPRA
       =============================================================== */}
-
       {compraModal && (
         <ConfirmarCompraModal
           repuestoNombre={compraModal.nombre_repuesto}
           onClose={() => setCompraModal(null)}
           onConfirm={() => handleMarcarComprado(compraModal)}
+        />
+      )}
+
+      {/* ===============================================================
+          MODAL AGREGAR / ASIGNAR REPUESTO DE STOCK
+      =============================================================== */}
+      {stockModal && (
+        <AgregarRepuestoModal
+          {...(stockModal.mode === "crear"
+            ? { mode: "crear" as const }
+            : {
+                mode: "asignar" as const,
+                repuestoId: stockModal.repuesto.id,
+                repuestoNombre: stockModal.repuesto.nombre_repuesto,
+              })}
+          onClose={() => setStockModal(null)}
+          onSaved={async () => {
+            setStockModal(null);
+            await fetchRepuestos();
+          }}
         />
       )}
     </div>

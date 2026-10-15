@@ -53,6 +53,8 @@ export default function RepuestosTab({
   // Rol del usuario actual
   const [rol, setRol] = useState<Rol | null>(null);
   const [checkingRol, setCheckingRol] = useState(true);
+  const [garantiaCubreRepuesto, setGarantiaCubreRepuesto] = useState(false);
+  const [checkingGarantia, setCheckingGarantia] = useState(true);
 
   const puedeSolicitar =
     rol !== null && ROLES_QUE_PUEDEN_SOLICITAR.includes(rol);
@@ -63,6 +65,33 @@ export default function RepuestosTab({
   const [valor, setValor] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function checkGarantia() {
+      setCheckingGarantia(true);
+
+      const { data, error } = await supabase
+        .from("ordenes_servicio")
+        .select("garantia_ingreso, garantia_cubre_dano")
+        .eq("id", ordenId)
+        .single();
+
+      if (error) {
+        console.error("Error obteniendo garantía de la orden:", error);
+        setGarantiaCubreRepuesto(false);
+        setCheckingGarantia(false);
+        return;
+      }
+
+      setGarantiaCubreRepuesto(
+        data?.garantia_ingreso === true && data?.garantia_cubre_dano === true,
+      );
+
+      setCheckingGarantia(false);
+    }
+
+    checkGarantia();
+  }, [ordenId]);
 
   // =====================================================================
   // RESOLVER ROL DEL USUARIO ACTUAL
@@ -110,9 +139,7 @@ export default function RepuestosTab({
 
     const { data, error: queryError } = await supabase
       .from("repuestos_solicitados")
-      .select(
-        "id, nombre_repuesto, cantidad, valor, estado, created_at",
-      )
+      .select("id, nombre_repuesto, cantidad, valor, estado, created_at")
       .eq("origen_tipo", "orden_servicio")
       .eq("origen_id", ordenId)
       .order("created_at", { ascending: false });
@@ -172,6 +199,11 @@ export default function RepuestosTab({
       return;
     }
 
+    if (checkingGarantia) {
+      setFormError("Verificando cobertura de garantía...");
+      return;
+    }
+
     const nombreTrim = nombre.trim();
     const cantidadNum = Number(cantidad);
     const valorNum = Number(valor || 0);
@@ -209,7 +241,8 @@ export default function RepuestosTab({
           nombre_repuesto: nombreTrim,
           cantidad: cantidadNum,
           valor: valorNum,
-          estado: "pendiente",
+          estado: garantiaCubreRepuesto ? "autorizado" : "pendiente",
+          garantia_cubre_repuesto: garantiaCubreRepuesto,
           solicitado_por: auth.user.id,
         });
 
@@ -227,9 +260,7 @@ export default function RepuestosTab({
     } catch (err) {
       console.error("Error creando solicitud de repuesto:", err);
       setFormError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo agregar el repuesto.",
+        err instanceof Error ? err.message : "No se pudo agregar el repuesto.",
       );
     } finally {
       setSubmitting(false);

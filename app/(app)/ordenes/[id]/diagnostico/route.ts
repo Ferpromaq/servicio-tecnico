@@ -48,6 +48,7 @@ export async function POST(
 
     // 1) Verificar sesión y rol del usuario
     const supabase = await createServerSupabase();
+
     const {
       data: { user },
       error: authError,
@@ -150,7 +151,6 @@ export async function POST(
     }
 
     // 5) Determinar el nuevo estado
-    // 5) Determinar el nuevo estado
     let nuevoEstado = orden.estado;
 
     if (
@@ -187,15 +187,14 @@ export async function POST(
       const { error: histEstadoError } = await service
         .from("historial_estados")
         .insert({
-          origen_tipo: "orden_servicio", // ⚠️ ajusta al valor real del enum si aplica
+          origen_tipo: "orden_servicio",
           origen_id: ordenId,
           estado_anterior: orden.estado,
           estado_nuevo: nuevoEstado,
           usuario_id: usuario.id,
         });
+
       if (histEstadoError) {
-        // No abortamos la operación por esto — el diagnóstico ya se guardó.
-        // Solo lo dejamos en el log del servidor para investigar después.
         console.error(
           "Error guardando historial_estados:",
           histEstadoError.message,
@@ -205,18 +204,153 @@ export async function POST(
 
     // 7) Enviar correos SOLO en el primer diagnóstico
     const emailsEnviados: string[] = [];
+
     if (esPrimerDiagnostico) {
-      const tieneGarantia = garantiaCubreDano === true;
       const clienteCorreo = orden.cliente?.correo;
       const clienteNombre = orden.cliente?.nombre_razon_social ?? "Cliente";
       const maquinaNombre = orden.maquina?.nombre ?? "su máquina";
 
       const mensajeCliente =
-        orden.garantia_ingreso === true && garantiaCubreDano === true
-          ? `Le informamos que la máquina "${maquinaNombre}" (Orden N° ${orden.numero_orden}) ya fue diagnosticada. De acuerdo con el diagnóstico realizado, el daño se encuentra cubierto por la garantía. Actualmente estamos revisando los repuestos necesarios, los cuales están cubiertos por su garantía, por lo que no deberá preocuparse por costos adicionales asociados a estas piezas.`
-          : orden.garantia_ingreso === true && garantiaCubreDano === false
-            ? `Le informamos que la máquina "${maquinaNombre}" (Orden N° ${orden.numero_orden}) ya fue diagnosticada. La máquina se encontraba dentro del período de garantía; sin embargo, de acuerdo con el diagnóstico realizado, se determinó que el daño corresponde a <strong> ${razonNoCubre ?? "una situación no cubierta por la garantía"}.</strong> Por este motivo, este daño no se encuentra cubierto por la garantía.`
-            : `Le informamos que la máquina "${maquinaNombre}" (Orden N° ${orden.numero_orden}) ya fue diagnosticada. La máquina no se encuentra cubierta por garantía. Pronto recibirá un correo con el detalle de los repuestos que se deben comprar para continuar con la reparación.`;
+        garantiaCubreDano === true
+          ? `
+        <p>
+          Le informamos que la máquina <strong>"${maquinaNombre}"</strong>
+          (Orden N° ${orden.numero_orden}) ya fue diagnosticada.
+        </p>
+
+        <p>
+          De acuerdo con el diagnóstico realizado, se determinó que la falla
+          se encuentra cubierta por la garantía.
+        </p>
+
+        <p>
+          Actualmente estamos revisando los repuestos necesarios para realizar
+          la reparación. Estos repuestos estarán cubiertos por la garantía,
+          por lo que no deberá preocuparse por costos adicionales asociados a
+          estas piezas.
+        </p>
+      `
+          : garantiaCubreDano === false
+            ? orden.garantia_ingreso === true
+              ? `
+            <p>
+              Le informamos que la máquina <strong>"${maquinaNombre}"</strong>
+              (Orden N° ${orden.numero_orden}) ya fue diagnosticada.
+            </p>
+
+            <p>
+              <strong>Resultado del diagnóstico:</strong><br/>
+              ${diagnostico.replace(/\n/g, "<br />")}
+            </p>
+
+            <p>
+              Si bien la máquina ingresó dentro del período de garantía,
+              la falla identificada no se encuentra cubierta por la garantía.
+              El motivo es el siguiente:
+            </p>
+
+            <p>
+              <strong>
+                ${razonNoCubre ?? "La falla corresponde a una situación no cubierta por la garantía."}
+              </strong>
+            </p>
+
+            <p>
+              Por este motivo, la reparación deberá realizarse como un servicio
+              fuera de garantía.
+            </p>
+
+            <p>
+              Como siguiente paso, recibirá un nuevo correo con el detalle de
+              los repuestos necesarios para realizar la reparación y sus
+              respectivos valores.
+            </p>
+
+            <p>
+              Una vez que reciba ese correo, podrá simplemente responderlo
+              indicando si está de acuerdo o no con realizar el pago y continuar
+              con la reparación.
+            </p>
+
+            <p>
+              <strong>Si decide continuar:</strong><br/>
+              será necesario realizar un pago de al menos el
+              <strong>60% del valor de los repuestos</strong> para que podamos
+              continuar con el proceso de reparación.
+            </p>
+
+            <p>
+              <strong>Si decide no continuar:</strong><br/>
+              no se realizará la reparación. Procederemos a alistar la máquina
+              y la dejaremos disponible para que pueda retirarla en nuestras
+              instalaciones.
+            </p>
+          `
+              : `
+            <p>
+              Le informamos que la máquina <strong>"${maquinaNombre}"</strong>
+              (Orden N° ${orden.numero_orden}) ya fue diagnosticada.
+            </p>
+
+            <p>
+              <strong>Resultado del diagnóstico:</strong><br/>
+              ${diagnostico.replace(/\n/g, "<br />")}
+            </p>
+
+            <p>
+              De acuerdo con el diagnóstico realizado, la falla no se encuentra
+              cubierta por la garantía.
+            </p>
+
+            <p>
+              Por este motivo, la reparación deberá realizarse como un servicio
+              fuera de garantía.
+            </p>
+
+            <p>
+              Como siguiente paso, recibirá un nuevo correo con el detalle de
+              los repuestos necesarios para realizar la reparación y sus
+              respectivos valores.
+            </p>
+
+            <p>
+              Una vez que reciba ese correo, podrá simplemente responderlo
+              indicando si está de acuerdo o no con realizar el pago y continuar
+              con la reparación.
+            </p>
+
+            <p>
+              <strong>Si decide continuar:</strong><br/>
+              será necesario realizar un pago de al menos el
+              <strong>60% del valor de los repuestos</strong> para que podamos
+              continuar con el proceso de reparación.
+            </p>
+
+            <p>
+              <strong>Si decide no continuar:</strong><br/>
+              no se realizará la reparación. Procederemos a alistar la máquina
+              y la dejaremos disponible para que pueda retirarla en nuestras
+              instalaciones.
+            </p>
+          `
+            : `
+          <p>
+            Le informamos que la máquina <strong>"${maquinaNombre}"</strong>
+            (Orden N° ${orden.numero_orden}) ya fue diagnosticada.
+          </p>
+
+          <p>
+            <strong>Resultado del diagnóstico:</strong><br/>
+            ${diagnostico.replace(/\n/g, "<br />")}
+          </p>
+
+          <p>
+            El diagnóstico ha sido registrado correctamente y próximamente
+            le informaremos los siguientes pasos para continuar con el servicio.
+          </p>
+        `;
+
+      // Correo al cliente
       if (clienteCorreo) {
         try {
           console.log("RESEND: intentando enviar correo", {
@@ -231,15 +365,15 @@ export async function POST(
             to: clienteCorreo,
             subject: `Diagnóstico completado — Orden N° ${orden.numero_orden}`,
             html: `
-        <p>Estimado/a ${clienteNombre},</p>
+              <p>Estimado/a ${clienteNombre},</p>
 
-        <p>${mensajeCliente}</p>
+              ${mensajeCliente}
 
-        <p>
-          Saludos,<br/>
-          Equipo de Servicio Técnico
-        </p>
-      `,
+              <p>
+                Saludos,<br/>
+                Equipo de Servicio Técnico - Ferpromaq
+              </p>
+            `,
           });
 
           if (error) {
@@ -273,6 +407,7 @@ export async function POST(
         }
       }
 
+      // Correos a supervisores
       const { data: supervisores } = await service
         .from("usuarios")
         .select("id, nombre")
@@ -280,11 +415,13 @@ export async function POST(
         .eq("activo", true);
 
       const correosSupervisores: string[] = [];
+
       for (const sup of supervisores ?? []) {
         try {
           const { data: authUser } = await service.auth.admin.getUserById(
             sup.id,
           );
+
           if (authUser?.user?.email) {
             correosSupervisores.push(authUser.user.email);
           }
@@ -300,35 +437,52 @@ export async function POST(
             to: correosSupervisores,
             subject: `[Interno] Diagnóstico registrado — Orden N° ${orden.numero_orden}`,
             html: `
-              <p>El técnico <strong>${usuario.nombre}</strong> registró el diagnóstico de la orden N° ${orden.numero_orden}.</p>
-              <p><strong>Cliente:</strong> ${clienteNombre}</p>
-              <p><strong>Máquina:</strong> ${maquinaNombre}</p>
-<p>
-  <strong>Garantía:</strong>
-${
-  orden.garantia_ingreso === true && garantiaCubreDano === true
-    ? "Ingresó con garantía — daño cubierto"
-    : orden.garantia_ingreso === true && garantiaCubreDano === false
-      ? "Ingresó con garantía — daño NO cubierto"
-      : orden.garantia_ingreso === false
-        ? "Ingresó sin garantía"
-        : "No determinada"
-}
-</p>
+              <p>
+                El técnico <strong>${usuario.nombre}</strong> registró el diagnóstico
+                de la orden N° ${orden.numero_orden}.
+              </p>
 
-${
-  garantiaCubreDano === false && razonNoCubre
-    ? `
-      <p>
-        <strong>Razón no cubre:</strong><br/>
-        ${razonNoCubre.replace(/\n/g, "<br/>")}
-      </p>
-    `
-    : ""
-}
-              <p><strong>Diagnóstico:</strong><br/>${diagnostico.replace(/\n/g, "<br/>")}</p>
+              <p>
+                <strong>Cliente:</strong> ${clienteNombre}
+              </p>
+
+              <p>
+                <strong>Máquina:</strong> ${maquinaNombre}
+              </p>
+
+              <p>
+                <strong>Garantía:</strong>
+                ${
+                  garantiaCubreDano === true
+                    ? orden.garantia_ingreso === true
+                      ? "Ingresó con garantía — daño cubierto"
+                      : "Ingresó sin garantía — daño marcado como cubierto"
+                    : garantiaCubreDano === false
+                      ? orden.garantia_ingreso === true
+                        ? "Ingresó con garantía — daño NO cubierto"
+                        : "Ingresó sin garantía — daño NO cubierto"
+                      : "No determinada"
+                }
+              </p>
+
+              ${
+                garantiaCubreDano === false && razonNoCubre
+                  ? `
+                    <p>
+                      <strong>Razón no cubre:</strong><br/>
+                      ${razonNoCubre.replace(/\n/g, "<br/>")}
+                    </p>
+                  `
+                  : ""
+              }
+
+              <p>
+                <strong>Diagnóstico:</strong><br/>
+                ${diagnostico.replace(/\n/g, "<br/>")}
+              </p>
             `,
           });
+
           emailsEnviados.push(...correosSupervisores);
         } catch (e) {
           console.error("Error enviando correo a supervisores:", e);
@@ -349,9 +503,8 @@ ${
       correosEnviados: emailsEnviados,
     });
   } catch (err) {
-    // Red de seguridad: cualquier excepción no controlada llega aquí,
-    // así el cliente SIEMPRE recibe JSON válido en vez de una página de error HTML.
     console.error("Error inesperado en POST /diagnostico:", err);
+
     return NextResponse.json(
       {
         error:

@@ -5,9 +5,13 @@ import type { useGarantia } from "../hooks/useGarantia";
 
 interface GarantiaFieldProps {
   state: ReturnType<typeof useGarantia>;
+  puestaEnMarcha?: boolean;
 }
 
-export function GarantiaField({ state }: GarantiaFieldProps) {
+export function GarantiaField({
+  state,
+  puestaEnMarcha = false,
+}: GarantiaFieldProps) {
   const {
     tieneGarantia,
     setTieneGarantia,
@@ -19,6 +23,37 @@ export function GarantiaField({ state }: GarantiaFieldProps) {
     setNumeroBoletaRevision,
   } = state;
 
+  // Puesta en Marcha:
+  // la garantía es obligatoria y se debe acreditar la compra.
+  if (puestaEnMarcha) {
+    return (
+      <Field label="Puesta en Marcha: garantía y compra" required>
+        <div className="mb-2 rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2">
+          <p className="text-xs font-medium text-emerald-400">
+            Garantía activada automáticamente
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Ingresa el número de boleta o factura para verificar que el equipo
+            fue comprado recientemente y corresponde a su primera puesta en
+            marcha.
+          </p>
+        </div>
+
+        <input
+          value={numeroBoletaCompra}
+          type="number"
+          min={1}
+          onChange={(e) => setNumeroBoletaCompra(e.target.value)}
+          placeholder="N.º de boleta o factura de compra *"
+          aria-label="Número de boleta o factura de compra"
+          required
+          className={inputBase}
+        />
+      </Field>
+    );
+  }
+
+  // Flujo habitual de garantía.
   return (
     <Field label="¿La máquina tiene garantía?" required>
       <div className="flex gap-1.5">
@@ -29,11 +64,12 @@ export function GarantiaField({ state }: GarantiaFieldProps) {
             "flex-1 rounded-md border px-3 py-2 text-xs font-medium transition",
             tieneGarantia === true
               ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-              : "border-slate-700 text-slate-400 hover:border-slate-600"
+              : "border-slate-700 text-slate-400 hover:border-slate-600",
           )}
         >
           Sí, tiene garantía
         </button>
+
         <button
           type="button"
           onClick={() => setTieneGarantia(false)}
@@ -41,7 +77,7 @@ export function GarantiaField({ state }: GarantiaFieldProps) {
             "flex-1 rounded-md border px-3 py-2 text-xs font-medium transition",
             tieneGarantia === false
               ? "border-orange-500 bg-orange-500/10 text-orange-400"
-              : "border-slate-700 text-slate-400 hover:border-slate-600"
+              : "border-slate-700 text-slate-400 hover:border-slate-600",
           )}
         >
           No tiene garantía
@@ -53,7 +89,9 @@ export function GarantiaField({ state }: GarantiaFieldProps) {
           <input
             value={numeroBoletaCompra}
             onChange={(e) => setNumeroBoletaCompra(e.target.value)}
-            placeholder="N° de boleta o factura de la máquina *"
+            placeholder="N.º de boleta o factura de la máquina *"
+            aria-label="Número de boleta o factura de compra"
+            required
             className={inputBase}
           />
         </div>
@@ -69,16 +107,22 @@ export function GarantiaField({ state }: GarantiaFieldProps) {
             value={montoRevision}
             onChange={(e) => setMontoRevision(e.target.value)}
             placeholder="Monto revisión *"
+            aria-label="Monto de revisión"
+            required
             className={inputBase}
           />
+
           <input
             value={numeroBoletaRevision}
             onChange={(e) => setNumeroBoletaRevision(e.target.value)}
-            placeholder="N° boleta/factura pago *"
+            placeholder="N.º boleta/factura pago *"
+            aria-label="Número de boleta o factura de pago de revisión"
+            required
             className={inputBase}
           />
+
           <span className="col-span-2 text-[11px] text-slate-500">
-            Rango sugerido: $18.000 – $30.000 según la máquina
+            Rango sugerido: $18.000 – $30.000 según la máquina.
           </span>
         </div>
       )}
