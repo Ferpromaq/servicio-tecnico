@@ -37,12 +37,14 @@ export const stats = [
 ];
 
 export const orderStatusStyles = {
-  "Recepción": "bg-orange-50 text-orange-700",
-  "Diagnóstico": "bg-amber-50 text-amber-700",
-  "Esperando Repuestos": "bg-purple-50 text-purple-700",
-  "En Reparación": "bg-orange-50 text-orange-700",
-  "Lista para Entrega": "bg-sky-50 text-sky-700",
-  "Entregada": "bg-gray-100 text-gray-600",
+  recepcion: "bg-orange-50 text-orange-700",
+  diagnostico: "bg-amber-50 text-amber-700",
+  esperando_autorizacion_cliente: "bg-purple-50 text-purple-700",
+  esperando_autorizacion_jefe: "bg-purple-50 text-purple-700",
+  en_reparacion: "bg-orange-50 text-orange-700",
+  lista_para_entrega: "bg-sky-50 text-sky-700",
+  entregada: "bg-gray-100 text-gray-600",
+  no_reparada: "bg-red-50 text-red-700",
 };
 
 export const serviceOrders = [
@@ -199,8 +201,16 @@ export const currentUser = {
 
 export const sidebarNav = {
   operaciones: [
-    { label: "Órdenes de Servicio", icon: "clipboard", href: "/dashboard/ordenes" },
-    { label: "Mantenimientos", icon: "wrenchAlt", href: "/dashboard/mantenimientos" },
+    {
+      label: "Órdenes de Servicio",
+      icon: "clipboard",
+      href: "/dashboard/ordenes",
+    },
+    {
+      label: "Mantenimientos",
+      icon: "wrenchAlt",
+      href: "/dashboard/mantenimientos",
+    },
     { label: "Máquinas", icon: "box", href: "/dashboard/maquinas" },
     { label: "Clientes", icon: "users", href: "/dashboard/clientes" },
     { label: "Repuestos", icon: "package", href: "/dashboard/repuestos" },
@@ -219,6 +229,10 @@ export const sidebarNav = {
   ],
   configuracion: [
     { label: "Usuarios", icon: "userCog", href: "/dashboard/usuarios" },
-    { label: "Configuración", icon: "settings", href: "/dashboard/configuracion" },
+    {
+      label: "Configuración",
+      icon: "settings",
+      href: "/dashboard/configuracion",
+    },
   ],
 };

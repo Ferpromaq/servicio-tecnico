@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import {
@@ -51,8 +51,21 @@ function obtenerPaginaValida(valor: string | null) {
 
   return Number.isInteger(pagina) && pagina >= 1 ? pagina : 1;
 }
-
 export default function RepresentantesMarcaPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+          Cargando representantes...
+        </div>
+      }
+    >
+      <RepresentantesMarcaContent />
+    </Suspense>
+  );
+}
+
+function RepresentantesMarcaContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

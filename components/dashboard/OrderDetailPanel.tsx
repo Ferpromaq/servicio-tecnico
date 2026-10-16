@@ -218,6 +218,7 @@ type OrderDetail = {
   diagnostico: string | null;
   observaciones: string | null;
   tabs: string[];
+  maquinaId: string | null;
 };
 
 type StatusStepProps = {
@@ -280,6 +281,7 @@ type OrderDetailQuery = {
   garantia_cubre_dano: boolean | null;
   razon_no_cubre: string | null;
   created_at: string;
+  maquina_id: string | null;
 
   cliente:
     | {
@@ -334,6 +336,7 @@ function mapOrder(data: OrderDetailQuery): OrderDetail {
     nSerie: maquina?.numero_serie ?? null,
     fechaIngreso: new Date(data.created_at).toLocaleString("es-CL"),
     tecnicoAsignado: tecnico?.nombre ?? "Sin asignar",
+    maquinaId: data.maquina_id ?? null,
 
     // Garantía de ingreso: se mantiene tal cual entró, sin importar el diagnóstico.
     garantiaIngreso: data.garantia_ingreso,
@@ -359,6 +362,14 @@ export default function OrderDetailPanel({ orderId }: OrderDetailPanelProps) {
   const [activeTab, setActiveTab] = useState("Resumen");
 
   const [loading, setLoading] = useState(true);
+
+  const [proximoMantenimiento, setProximoMantenimiento] = useState<
+    string | null
+  >(null);
+
+  const [cargandoMantenimiento, setCargandoMantenimiento] = useState(false);
+
+  const [errorMantenimiento, setErrorMantenimiento] = useState(false);
 
   /**
    * ============================================================
@@ -418,6 +429,56 @@ export default function OrderDetailPanel({ orderId }: OrderDetailPanelProps) {
   // vez que `DiagnosticoPanel` actualiza el estado local, lo que
   // destruía y volvía a montar este efecto sin necesidad, aumentando
   // el riesgo de chocar con un canal todavía no removido.
+
+  useEffect(() => {
+    let activo = true;
+
+    async function cargarProximoMantenimiento() {
+      if (!order?.maquinaId) {
+        setProximoMantenimiento(null);
+        setCargandoMantenimiento(false);
+        return;
+      }
+
+      setCargandoMantenimiento(true);
+      setErrorMantenimiento(false);
+
+      const ahora = new Date();
+      const hoy = [
+        ahora.getFullYear(),
+        String(ahora.getMonth() + 1).padStart(2, "0"),
+        String(ahora.getDate()).padStart(2, "0"),
+      ].join("-");
+
+      const { data, error } = await supabase
+        .from("mantenimientos")
+        .select("proxima_revision")
+        .eq("maquina_id", order.maquinaId)
+        .gte("proxima_revision", hoy)
+        .order("proxima_revision", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!activo) return;
+
+      if (error) {
+        console.error("Error al consultar el próximo mantenimiento:", error);
+        setProximoMantenimiento(null);
+        setErrorMantenimiento(true);
+      } else {
+        setProximoMantenimiento(data?.proxima_revision ?? null);
+      }
+
+      setCargandoMantenimiento(false);
+    }
+
+    cargarProximoMantenimiento();
+
+    return () => {
+      activo = false;
+    };
+  }, [order?.maquinaId]);
+
   useEffect(() => {
     if (!order?.id) return;
 
@@ -460,32 +521,30 @@ export default function OrderDetailPanel({ orderId }: OrderDetailPanelProps) {
       .from("ordenes_servicio")
       .select(
         `
-        id,
-        numero_orden,
-        estado,
-        descripcion_problema,
-        diagnostico,
-        garantia_ingreso,
-        garantia_cubre_dano,
-        razon_no_cubre,
-        created_at,
-
-        cliente:clientes (
-          nombre_razon_social,
-          telefono,
-          rut
-        ),
-
-        maquina:maquinas (
-          nombre,
-          modelo,
-          numero_serie
-        ),
-
-        tecnico:usuarios!ordenes_servicio_tecnico_id_fkey (
-          nombre
-        )
-      `,
+  id,
+  numero_orden,
+  maquina_id,
+  estado,
+  descripcion_problema,
+  diagnostico,
+  garantia_ingreso,
+  garantia_cubre_dano,
+  razon_no_cubre,
+  created_at,
+  cliente:clientes (
+    nombre_razon_social,
+    telefono,
+    rut
+  ),
+  maquina:maquinas (
+    nombre,
+    modelo,
+    numero_serie
+  ),
+  tecnico:usuarios!ordenes_servicio_tecnico_id_fkey (
+    nombre
+  )
+`,
       )
       .eq("id", orderId)
       .single();
@@ -864,7 +923,17 @@ export default function OrderDetailPanel({ orderId }: OrderDetailPanelProps) {
                   Próximo Mantenimiento
                 </p>
 
-                <p className="text-[12px] text-gray-500">No programado</p>
+                <p className="text-[12px] text-gray-500">
+                  {cargandoMantenimiento
+                    ? "Consultando..."
+                    : errorMantenimiento
+                      ? "No se pudo consultar"
+                      : proximoMantenimiento
+                        ? new Date(
+                            `${proximoMantenimiento}T12:00:00`,
+                          ).toLocaleDateString("es-CL")
+                        : "No programado"}
+                </p>
               </div>
             </div>
           </>
