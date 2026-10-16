@@ -13,6 +13,7 @@ import {
   FileText,
   Calendar,
   CalendarCheck,
+  ContactRound,
   BarChart3,
   LineChart,
   UserCog,
@@ -32,6 +33,7 @@ const iconMap = {
   wrenchAlt: Wrench,
   box: Box,
   users: Users,
+  contactRound: ContactRound,
   package: Package,
   fileText: FileText,
   calendar: Calendar,
@@ -69,12 +71,10 @@ function NavSection({
 
       <ul className="space-y-0">
         {items.map((item) => {
-          const Icon =
-            iconMap[item.icon as keyof typeof iconMap] ?? Box;
+          const Icon = iconMap[item.icon as keyof typeof iconMap] ?? Box;
 
           const isActive =
-            pathname === item.href ||
-            pathname.startsWith(`${item.href}/`);
+            pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <li key={item.href}>
